@@ -483,9 +483,17 @@ public class XML {
         }
     }
 
-    // overwritten method of parse which allows to pass a prefix tag
-    /* Milestone3
-    overwritten new method of parse
+    /**
+     * Compared to the original parse function, this function adds the function (String Convertor) as an input
+     * @param x
+     * @param context
+     * @param name
+     * @param config
+     * @param currentNestingDepth
+     * @param keyTransformer
+     *      The function which takes in a single String parameter, and returns another converted String
+     * @return
+     * @throws JSONException
      */
     private static boolean parseMilestone3(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth,Function<String, String> keyTransformer)
             throws JSONException {
@@ -604,29 +612,6 @@ public class XML {
                     } else {
                         jsonObject.accumulate(keyTransformer.apply(string), "");
                     }
-                        /*} else if (!nilAttributeFound) {
-                            Object obj = stringToValue((String) token);
-                            if (obj instanceof Boolean) {
-                                jsonObject.accumulate(prefix + string,
-                                        config.isKeepBooleanAsString()
-                                                ? ((String) token)
-                                                : obj);
-                            } else if (obj instanceof Number) {
-                                jsonObject.accumulate(prefix + string,
-                                        config.isKeepNumberAsString()
-                                                ? ((String) token)
-                                                : obj);
-                            } else {
-                                jsonObject.accumulate(prefix + string, stringToValue((String) token));
-                            }
-                        }
-                        token = null;
-                    } else {
-                        jsonObject.accumulate(prefix + string, "");
-                    }
-                         */
-
-
                 } else if (token == SLASH) {
                     // Empty tag <.../>
                     if (x.nextToken() != GT) {
@@ -735,52 +720,6 @@ public class XML {
             }
         }
     }
-                        }
-
-
-                            // Nested element
-                            /*
-                            if (currentNestingDepth == config.getMaxNestingDepth()) {
-                                throw x.syntaxError("Maximum nesting depth of " + config.getMaxNestingDepth() + " reached");
-                            }
-
-                            if (parse(x, jsonObject, tagName, prefix, config, currentNestingDepth + 1)) {
-                                if (config.getForceList().contains(tagName)) {
-                                    // Force the value to be an array
-                                    if (jsonObject.length() == 0) {
-                                        context.put(tagName, new JSONArray());
-                                    } else if (jsonObject.length() == 1
-                                            && jsonObject.opt(config.getcDataTagName()) != null) {
-                                        context.append(prefix + tagName, jsonObject.opt(config.getcDataTagName()));
-                                    } else {
-                                        context.append(prefix + tagName, jsonObject);
-                                    }
-                                } else {
-                                    if (jsonObject.length() == 0) {
-                                        context.accumulate(prefix + tagName, "");
-                                    } else if (jsonObject.length() == 1
-                                            && jsonObject.opt(config.getcDataTagName()) != null) {
-                                        context.accumulate(prefix + tagName, jsonObject.opt(config.getcDataTagName()));
-                                    } else {
-                                        if (!config.shouldTrimWhiteSpace()) {
-                                            removeEmpty(jsonObject, config);
-                                        }
-                                        context.accumulate(prefix + tagName, jsonObject);
-                                    }
-                                }
-
-                                return false;
-                            }
-                        }
-                    }
-                } else {
-                    throw x.syntaxError("Misshaped tag");
-                }
-            }
-        }
-    }
-
-                             */
     /**
      * This method removes any JSON entry which has the key set by XMLParserConfiguration.cDataTagName
      * and contains whitespace as this is caused by whitespace between tags. See test XMLTest.testNestedWithWhitespaceTrimmingDisabled.

@@ -14,7 +14,7 @@ import static org.junit.Assert.assertEquals;
 public class XMLKeyTransformerTest {
     // define some customized functions for testing
     @Test
-    public void keyTransformerSimpleTest() {
+    public void keyTransformerAddPrefixTest() {
         String xml = "<book><title>Title</title><author>John</author></book>";
         Function<String, String> prefixer = key -> "swe262_" + key;
 
@@ -39,37 +39,3 @@ public class XMLKeyTransformerTest {
         XML.toJSONObject(null, key -> "x_" + key);
     }
 }
-
-/*
-    @Test
-    public void testXML01() {
-        String xml = "<book><title><content>Old Title</content></title><author>John</author></book>";
-        StringReader reader = new StringReader(xml);
-
-        JSONObject result = XML.toJSONObject(reader, "swe_262p");
-
-        System.out.println(result);
-    }
-
-    @Test
-    public void testXML02() {
-        String xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
-                "<contact>\n"+
-                "  <nick>Crista </nick>\n"+
-                "  <name>Crista Lopes</name>\n" +
-                "  <address>\n" +
-                "    <street>Ave of Nowhere</street>\n" +
-                "    <zipcode>92614</zipcode>\n" +
-                "  </address>\n" +
-                "</contact>";
-
-        try {
-            JSONObject jobj = XML.toJSONObject(new StringReader(xmlString), "swe_262p");
-            System.out.println(jobj);
-        } catch (JSONException e) {
-            System.out.println(e);
-        }
-    }
-}
-*/
-
