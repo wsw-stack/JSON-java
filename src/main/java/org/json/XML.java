@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
 import java.io.BufferedReader;
-import java.io.Reader;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -484,7 +484,10 @@ public class XML {
     }
 
     // overwritten method of parse which allows to pass a prefix tag
-    private static boolean parse(XMLTokener x, JSONObject context, String name, String prefix, XMLParserConfiguration config, int currentNestingDepth)
+    /* Milestone3
+    overwritten new method of parse
+     */
+    private static boolean parseMilestone3(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth,Function<String, String> keyTransformer)
             throws JSONException {
         char c;
         int i;
@@ -567,6 +570,7 @@ public class XML {
 
         } else {
             tagName = (String) token;
+            String transformedTagName = keyTransformer.apply(tagName);//add
             token = null;
             jsonObject = new JSONObject();
             boolean nilAttributeFound = false;
@@ -584,7 +588,7 @@ public class XML {
                         if (!(token instanceof String)) {
                             throw x.syntaxError("Missing value");
                         }
-
+                        String transformedKey = keyTransformer.apply(string); //add new code
                         if (config.isConvertNilAttributeToNull()
                                 && NULL_ATTR.equals(string)
                                 && Boolean.parseBoolean((String) token)) {
@@ -593,6 +597,14 @@ public class XML {
                                 && TYPE_ATTR.equals(string)) {
                             xmlXsiTypeConverter = config.getXsiTypeMap().get(token);
                         } else if (!nilAttributeFound) {
+                            Object obj = stringToValue((String) token);
+                            jsonObject.accumulate(transformedKey, obj);
+                        }
+                        token = null;
+                    } else {
+                        jsonObject.accumulate(keyTransformer.apply(string), "");
+                    }
+                        /*} else if (!nilAttributeFound) {
                             Object obj = stringToValue((String) token);
                             if (obj instanceof Boolean) {
                                 jsonObject.accumulate(prefix + string,
@@ -612,6 +624,7 @@ public class XML {
                     } else {
                         jsonObject.accumulate(prefix + string, "");
                     }
+                         */
 
 
                 } else if (token == SLASH) {
@@ -619,6 +632,25 @@ public class XML {
                     if (x.nextToken() != GT) {
                         throw x.syntaxError("Misshaped tag");
                     }
+                    if (config.getForceList().contains(tagName)) {
+                        if (nilAttributeFound) {
+                            context.append(transformedTagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.append(transformedTagName, jsonObject);
+                        } else {
+                            context.put(transformedTagName, new JSONArray());
+                        }
+                    } else {
+                        if (nilAttributeFound) {
+                            context.accumulate(transformedTagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.accumulate(transformedTagName, jsonObject);
+                        } else {
+                            context.accumulate(transformedTagName, "");
+                        }
+                    }
+                    return false;
+                    /*
                     if (config.getForceList().contains(prefix + tagName)) {
                         // Force the value to be an array
                         if (nilAttributeFound) {
@@ -638,7 +670,7 @@ public class XML {
                         }
                     }
                     return false;
-
+                    */
                 } else if (token == GT) {
                     // Content, between <...> and </...>
                     for (;;) {
@@ -673,7 +705,41 @@ public class XML {
                             }
 
                         } else if (token == LT) {
+                            if (parseMilestone3(x, jsonObject,tagName, config, currentNestingDepth + 1, keyTransformer)) {
+                                if (config.getForceList().contains(tagName)) {
+                                    if (jsonObject.length() == 0) {
+                                        context.put(transformedTagName, new JSONArray());
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.append(transformedTagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        context.append(transformedTagName, jsonObject);
+                                    }
+                                } else {
+                                    if (jsonObject.length() == 0) {
+                                        context.accumulate(transformedTagName, "");
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.accumulate(transformedTagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        context.accumulate(transformedTagName, jsonObject);
+                                    }
+                                }
+                                return false;
+                            }
+                        }
+                    }
+                } else {
+                    throw x.syntaxError("Misshaped tag");
+                }
+            }
+        }
+    }
+                        }
+
+
                             // Nested element
+                            /*
                             if (currentNestingDepth == config.getMaxNestingDepth()) {
                                 throw x.syntaxError("Maximum nesting depth of " + config.getMaxNestingDepth() + " reached");
                             }
@@ -713,6 +779,8 @@ public class XML {
             }
         }
     }
+
+                             */
     /**
      * This method removes any JSON entry which has the key set by XMLParserConfiguration.cDataTagName
      * and contains whitespace as this is caused by whitespace between tags. See test XMLTest.testNestedWithWhitespaceTrimmingDisabled.
@@ -1188,11 +1256,24 @@ public class XML {
 
     /**
      * Given a customized function, convert the keys in the Json Object
-     * @param reader
-     * @param prefix
-     * @return
-     * @throws JSONException
+     * @param reader the XML input
+     * @param keyTransformer a function that transforms each key name
+     * @return JSONObject with transformed keys
+     * @throws JSONException if any XML parsing or transformation fails
      */
+    public static JSONObject toJSONObject(Reader reader, Function<String, String> keyTransformer) throws JSONException {
+        JSONObject result = new JSONObject();
+        XMLTokener x = new XMLTokener(reader);
+
+        while (x.more()) {
+            x.skipPast("<");
+            if (x.more()) {
+                XML.parseMilestone3(x, result, null, XMLParserConfiguration.ORIGINAL, 0, keyTransformer);
+            }
+        }
+        return result;
+    }
+    /*
     public static JSONObject toJSONObject(Reader reader, String prefix) throws JSONException {
         JSONObject jo = new JSONObject();
         XMLParserConfiguration config = XMLParserConfiguration.ORIGINAL;
@@ -1205,7 +1286,7 @@ public class XML {
         }
         return jo;
     }
-
+*/
     /**
      * Helper method: skip the current element and its entire subtree without
      * building any JSON output.
@@ -1867,7 +1948,6 @@ public class XML {
             throw new JSONException("Replacement failed or path not found: " + path);
         }
     }
-
 
     /**
      * Convert a well-formed (but not necessarily valid) XML string into a
