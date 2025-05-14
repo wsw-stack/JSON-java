@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
 import java.io.BufferedReader;
-import java.io.Reader;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -472,6 +472,244 @@ public class XML {
                                     }
                                 }
 
+                                return false;
+                            }
+                        }
+                    }
+                } else {
+                    throw x.syntaxError("Misshaped tag");
+                }
+            }
+        }
+    }
+
+    /**
+     * Compared to the original parse function, this function adds the function (String Convertor) as an input
+     * @param x
+     * @param context
+     * @param name
+     * @param config
+     * @param currentNestingDepth
+     * @param keyTransformer
+     *      The function which takes in a single String parameter, and returns another converted String
+     * @return
+     * @throws JSONException
+     */
+    private static boolean parseMilestone3(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth,Function<String, String> keyTransformer)
+            throws JSONException {
+        char c;
+        int i;
+        JSONObject jsonObject = null;
+        String string;
+        String tagName;
+        Object token;
+        XMLXsiTypeConverter<?> xmlXsiTypeConverter;
+
+        // Test for and skip past these forms:
+        // <!-- ... -->
+        // <! ... >
+        // <![ ... ]]>
+        // <? ... ?>
+        // Report errors for these forms:
+        // <>
+        // <=
+        // <<
+        token = x.nextToken();
+
+        // <!
+        if (token == BANG) {
+            c = x.next();
+            if (c == '-') {
+                if (x.next() == '-') {
+                    x.skipPast("-->");
+                    return false;
+                }
+                x.back();
+            } else if (c == '[') {
+                token = x.nextToken();
+                if ("CDATA".equals(token)) {
+                    if (x.next() == '[') {
+                        string = x.nextCDATA();
+                        if (string.length() > 0) {
+                            context.accumulate(config.getcDataTagName(), string);
+                        }
+                        return false;
+                    }
+                }
+                throw x.syntaxError("Expected 'CDATA['");
+            }
+            i = 1;
+            do {
+                token = x.nextMeta();
+                if (token == null) {
+                    throw x.syntaxError("Missing '>' after '<!'.");
+                } else if (token == LT) {
+                    i += 1;
+                } else if (token == GT) {
+                    i -= 1;
+                }
+            } while (i > 0);
+            return false;
+        } else if (token == QUEST) {
+
+            // <?
+            x.skipPast("?>");
+            return false;
+        } else if (token == SLASH) {
+
+            // Close tag </
+
+            token = x.nextToken();
+            if (name == null) {
+                throw x.syntaxError("Mismatched close tag " + token);
+            }
+            if (!token.equals(name)) {
+                throw x.syntaxError("Mismatched " + name + " and " + token);
+            }
+            if (x.nextToken() != GT) {
+                throw x.syntaxError("Misshaped close tag");
+            }
+            return true;
+
+        } else if (token instanceof Character) {
+            throw x.syntaxError("Misshaped tag");
+
+            // Open tag <
+
+        } else {
+            tagName = (String) token;
+            String transformedTagName = keyTransformer.apply(tagName);//add
+            token = null;
+            jsonObject = new JSONObject();
+            boolean nilAttributeFound = false;
+            xmlXsiTypeConverter = null;
+            for (;;) {
+                if (token == null) {
+                    token = x.nextToken();
+                }
+                // attribute = value
+                if (token instanceof String) {
+                    string = (String) token;
+                    token = x.nextToken();
+                    if (token == EQ) {
+                        token = x.nextToken();
+                        if (!(token instanceof String)) {
+                            throw x.syntaxError("Missing value");
+                        }
+                        String transformedKey = keyTransformer.apply(string); //add new code
+                        if (config.isConvertNilAttributeToNull()
+                                && NULL_ATTR.equals(string)
+                                && Boolean.parseBoolean((String) token)) {
+                            nilAttributeFound = true;
+                        } else if(config.getXsiTypeMap() != null && !config.getXsiTypeMap().isEmpty()
+                                && TYPE_ATTR.equals(string)) {
+                            xmlXsiTypeConverter = config.getXsiTypeMap().get(token);
+                        } else if (!nilAttributeFound) {
+                            Object obj = stringToValue((String) token);
+                            jsonObject.accumulate(transformedKey, obj);
+                        }
+                        token = null;
+                    } else {
+                        jsonObject.accumulate(keyTransformer.apply(string), "");
+                    }
+                } else if (token == SLASH) {
+                    // Empty tag <.../>
+                    if (x.nextToken() != GT) {
+                        throw x.syntaxError("Misshaped tag");
+                    }
+                    if (config.getForceList().contains(tagName)) {
+                        if (nilAttributeFound) {
+                            context.append(transformedTagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.append(transformedTagName, jsonObject);
+                        } else {
+                            context.put(transformedTagName, new JSONArray());
+                        }
+                    } else {
+                        if (nilAttributeFound) {
+                            context.accumulate(transformedTagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.accumulate(transformedTagName, jsonObject);
+                        } else {
+                            context.accumulate(transformedTagName, "");
+                        }
+                    }
+                    return false;
+                    /*
+                    if (config.getForceList().contains(prefix + tagName)) {
+                        // Force the value to be an array
+                        if (nilAttributeFound) {
+                            context.append(prefix + tagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.append(prefix + tagName, jsonObject);
+                        } else {
+                            context.put(prefix + tagName, new JSONArray());
+                        }
+                    } else {
+                        if (nilAttributeFound) {
+                            context.accumulate(prefix + tagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.accumulate(prefix + tagName, jsonObject);
+                        } else {
+                            context.accumulate(prefix + tagName, "");
+                        }
+                    }
+                    return false;
+                    */
+                } else if (token == GT) {
+                    // Content, between <...> and </...>
+                    for (;;) {
+                        token = x.nextContent();
+                        if (token == null) {
+                            if (tagName != null) {
+                                throw x.syntaxError("Unclosed tag " + tagName);
+                            }
+                            return false;
+                        } else if (token instanceof String) {
+                            string = (String) token;
+                            if (string.length() > 0) {
+                                if(xmlXsiTypeConverter != null) {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            stringToValue(string, xmlXsiTypeConverter));
+                                } else {
+                                    Object obj = stringToValue((String) token);
+                                    if (obj instanceof Boolean) {
+                                        jsonObject.accumulate(config.getcDataTagName(),
+                                                config.isKeepBooleanAsString()
+                                                        ? ((String) token)
+                                                        : obj);
+                                    } else if (obj instanceof Number) {
+                                        jsonObject.accumulate(config.getcDataTagName(),
+                                                config.isKeepNumberAsString()
+                                                        ? ((String) token)
+                                                        : obj);
+                                    } else {
+                                        jsonObject.accumulate(config.getcDataTagName(), stringToValue((String) token));
+                                    }
+                                }
+                            }
+
+                        } else if (token == LT) {
+                            if (parseMilestone3(x, jsonObject,tagName, config, currentNestingDepth + 1, keyTransformer)) {
+                                if (config.getForceList().contains(tagName)) {
+                                    if (jsonObject.length() == 0) {
+                                        context.put(transformedTagName, new JSONArray());
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.append(transformedTagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        context.append(transformedTagName, jsonObject);
+                                    }
+                                } else {
+                                    if (jsonObject.length() == 0) {
+                                        context.accumulate(transformedTagName, "");
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.accumulate(transformedTagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        context.accumulate(transformedTagName, jsonObject);
+                                    }
+                                }
                                 return false;
                             }
                         }
@@ -955,6 +1193,39 @@ public class XML {
         return result;
     }
 
+    /**
+     * Given a customized function, convert the keys in the Json Object
+     * @param reader the XML input
+     * @param keyTransformer a function that transforms each key name
+     * @return JSONObject with transformed keys
+     * @throws JSONException if any XML parsing or transformation fails
+     */
+    public static JSONObject toJSONObject(Reader reader, Function<String, String> keyTransformer) throws JSONException {
+        JSONObject result = new JSONObject();
+        XMLTokener x = new XMLTokener(reader);
+
+        while (x.more()) {
+            x.skipPast("<");
+            if (x.more()) {
+                XML.parseMilestone3(x, result, null, XMLParserConfiguration.ORIGINAL, 0, keyTransformer);
+            }
+        }
+        return result;
+    }
+    /*
+    public static JSONObject toJSONObject(Reader reader, String prefix) throws JSONException {
+        JSONObject jo = new JSONObject();
+        XMLParserConfiguration config = XMLParserConfiguration.ORIGINAL;
+        XMLTokener x = new XMLTokener(reader, config);
+        while (x.more()) {
+            x.skipPast("<");
+            if(x.more()) {
+                parse(x, jo, null, prefix, config, 0);
+            }
+        }
+        return jo;
+    }
+*/
     /**
      * Helper method: skip the current element and its entire subtree without
      * building any JSON output.
@@ -1616,7 +1887,6 @@ public class XML {
             throw new JSONException("Replacement failed or path not found: " + path);
         }
     }
-
 
     /**
      * Convert a well-formed (but not necessarily valid) XML string into a
