@@ -17,6 +17,8 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * A JSONObject is an unordered collection of name/value pairs. Its external
@@ -3029,5 +3031,65 @@ public class JSONObject {
         }
         if (negativeFirstChar) {return "-0";}
         return "0";
+    }
+
+    //    ---------------------------- Milestone 4 ------------------------------
+
+    /**
+     * Represents a node in the JSON object tree, with path and value.
+     */
+    public static class JSONNode {
+        private final String path;
+        private final Object value;
+
+        public JSONNode(String path, Object value) {
+            this.path = path;
+            this.value = value;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public Object getValue() {
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return "JSONNode{path='" + path + "', value=" + value + '}';
+        }
+    }
+
+    /**
+     * Convert this JSONObject into a stream of JSONNode, allowing chained operations.
+     * @return Stream of JSONNode objects (each has a full path and a value)
+     */
+    public Stream<JSONNode> toStream() {
+        return toStream("", this);
+    }
+
+    /**
+     * Recursive helper method to flatten JSONObject/JSONArray into JSONNode stream.
+     */
+    private Stream<JSONNode> toStream(String path, Object value) {
+        if (value instanceof JSONObject) {
+            JSONObject obj = (JSONObject) value;
+            return obj.keySet().stream()
+                    .flatMap(key -> {
+                        String newPath = path.isEmpty() ? "/" + key : path + "/" + key;
+                        return toStream(newPath, obj.get(key));
+                    });
+        } else if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            return IntStream.range(0, array.length())
+                    .boxed()
+                    .flatMap(i -> {
+                        String newPath = path + "[" + i + "]";
+                        return toStream(newPath, array.get(i));
+                    });
+        } else {
+            return Stream.of(new JSONNode(path, value));
+        }
     }
 }
