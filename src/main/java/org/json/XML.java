@@ -10,6 +10,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
 import java.io.BufferedReader;
+import java.util.concurrent.*;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -2236,5 +2238,67 @@ public class XML {
             sb.append(' ');
         }
         return sb.toString();
+    }
+
+    // milestone 5
+    private static final ExecutorService executor = Executors.newFixedThreadPool(
+            Runtime.getRuntime().availableProcessors()
+    );
+
+    public static Future<JSONObject> toJSONObject(
+            Reader reader,
+            Consumer<JSONObject> after,
+            Consumer<Exception> error
+    ) {
+        FutureTask<JSONObject> task = new FutureTask<>(new FutureTaskCallable(reader, after, error));
+        executor.execute(task);
+        return task;
+    }
+
+    private static class FutureTaskCallable implements Callable<JSONObject> {
+        private final Reader reader;
+        private final Consumer<JSONObject> after;
+        private final Consumer<Exception> error;
+
+        public FutureTaskCallable(
+                Reader reader,
+                Consumer<JSONObject> after,
+                Consumer<Exception> error
+        ) {
+            this.reader = reader;
+            this.after = after;
+            this.error = error;
+        }
+
+        @Override
+        public JSONObject call() throws Exception {
+            JSONObject jo = new JSONObject();
+            try {
+                XMLTokener x = new XMLTokener(reader);
+                while (x.more()) {
+                    x.skipPast("<");
+                    if (x.more()) {
+                        parse(x, jo, null, XMLParserConfiguration.ORIGINAL, 0);
+                    }
+                }
+                after.accept(jo);
+                return jo;
+            } catch (Exception e) {
+                error.accept(e);
+                throw e;
+            }
+        }
+    }
+
+    public static class AsyncRunner {
+        private List<Future<JSONObject>> tasks = new ArrayList<>();
+
+        public AsyncRunner() {
+        }
+
+        public void add(Future<JSONObject> task) {
+            this.tasks.add(task);
+        }
+
     }
 }
