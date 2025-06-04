@@ -2240,76 +2240,10 @@ public class XML {
         return sb.toString();
     }
 
-//    public static class asyncRunner {
-//        private List<Future<JSONObject>> tasks;
-//        private boolean running;
-//
-//        public asyncRunner() {
-//            this.tasks = new ArrayList<>();
-//            running = false;
-//        }
-//
-//        public void add(Future<JSONObject> task) {
-//            this.tasks.add(task);
-//        }
-//
-//
-//        public void run() {
-//            running = true;
-//            while(running) {
-//                List<Future<JSONObject>> nextTasks = new ArrayList<>();
-//                for(Future<JSONObject> task: tasks) {
-//                    if(!task.isDone()) {
-//                        nextTasks.add(task);
-//                    }
-//                }
-//                running = !nextTasks.isEmpty();
-//                tasks = nextTasks;
-//            }
-//        }
-//    }
-//
-//    public static Future<JSONObject> toJSONObject(Reader reader, Consumer<JSONObject> after, Consumer<Exception> error){
-//
-//        ExecutorService executor = Executors.newSingleThreadExecutor();
-//        futureTask task = new futureTask(reader, after, error);
-//        Future<JSONObject> future = executor.submit(task);
-//
-//        return future;
-//    }
-//
-//    private static class futureTask implements Callable<JSONObject> {
-//
-//        Reader reader;
-//        Consumer<JSONObject> after;
-//        Consumer<Exception> error;
-//        public futureTask(Reader reader, Consumer<JSONObject> after, Consumer<Exception> error) {
-//            this.reader = reader;
-//            this.after = after;
-//            this.error = error;
-//        }
-//
-//        @Override
-//        public JSONObject call() throws Exception {
-//            JSONObject jo = new JSONObject();
-//            try {
-//                XMLTokener x = new XMLTokener(reader);
-//                while (x.more()) {
-//                    x.skipPast("<");
-//                    if (x.more()) {
-//                        parse(x, jo, null, XMLParserConfiguration.ORIGINAL, 0);
-//                    }
-//                }
-//                after.accept(jo);
-//            } catch (Exception e) {
-//                error.accept(e);
-//            }
-//            return jo;
-//        }
-//    }
-private static final ExecutorService executor = Executors.newFixedThreadPool(
-        Runtime.getRuntime().availableProcessors()
-);
+    // milestone 5
+    private static final ExecutorService executor = Executors.newFixedThreadPool(
+            Runtime.getRuntime().availableProcessors()
+    );
 
     public static Future<JSONObject> toJSONObject(
             Reader reader,
@@ -2319,10 +2253,6 @@ private static final ExecutorService executor = Executors.newFixedThreadPool(
         FutureTask<JSONObject> task = new FutureTask<>(new FutureTaskCallable(reader, after, error));
         executor.execute(task);
         return task;
-    }
-
-    public static void shutdownExecutor() {
-        executor.shutdown();
     }
 
     private static class FutureTaskCallable implements Callable<JSONObject> {
@@ -2370,27 +2300,5 @@ private static final ExecutorService executor = Executors.newFixedThreadPool(
             this.tasks.add(task);
         }
 
-        public void run() {
-            boolean running = true;
-            while (running) {
-                List<Future<JSONObject>> nextTasks = new ArrayList<>();
-                for (Future<JSONObject> task : tasks) {
-                    if (!task.isDone()) {
-                        nextTasks.add(task);
-                    }
-                }
-                if (nextTasks.isEmpty()) {
-                    running = false;
-                } else {
-                    tasks = nextTasks;
-                    try {
-                        Thread.sleep(50);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        running = false;
-                    }
-                }
-            }
-        }
     }
 }
